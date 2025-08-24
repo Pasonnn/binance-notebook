@@ -1,78 +1,160 @@
 
-## Transaction
-### Definitions
-- What is a transaction:
-    - Trade 1:1 with your friend
-    - Swap by money - trade money for physical good
-- When you send or receive crypto is a transaction
-- Everything is a transaction in crypto (for example you play game and win an item, it send to your wallet -> it is a transaction)
-- => Blockchain transaction is any form of interaction between an individual and the blockchain.
-- Every transactions on blockchain will be public, but they wont know who (the wallet address) if you not tell that the wallet is yours.
-### Step by step a transaction from wallet to finalized block (EVM PoS)
-    - 0: You click sign, your wallet has already
-        - Build a transaction (nonce, to, value, data, gasLimit, maxFeePerGas, maxPriorityFeePerGas, chainId)
-        - Pulled nonce and did a gas estimate from some RPC node
-        " Tip: On Ethereum, most new transactions are Type-2 (EIP-1559) "
-    - 1: Constract the message to sign
-        - The wallet encodes the tx (typed exvelope + RLP payload).
-        - It forms the exact hash to sign (keccak256) over the typed tx per EIP-2718/1559).
-        - Fields you should know cold:
-            - nonce: sequential per account (prevents replay/refines order)
-            - to/value/data: destination, ETH emount, calldata (function + args).
-            - gasLimit: upper bound of gas your are willing to burn
-            - maxFeePerGas: cap you'll pay per gas (includes base fee + tip)
-            - maxPriorityFeePerGas: the tip to the proposer/builder
-            - chainId: EIP-155 replay protection
-    - 2: Cryptographic signing
-        - Wallet signs with your secp256k1 private key -> ECDSA signature (r, s, v)
-        - The signature is appended to the tx object -> raw signed tx (still bytes)
-    - 3: Broadcase to a node
-        - Wallet calls eth_sendRawTransaction to an RPC provider (Infura,Alchemy/your node)
-        - That node pre-validates:
-            - Signature recovers your sender address
-            - Nonce equals your next expected nonce
-            - You have enough balance for value + (gasLimit x maxFeePerGas)
-            - Intrinsic gas check (tx cant be under-gassed)
-        - If ok, the node drops it into its mempool and start gossiping it across peers.
-    - 4: Mempool propagation
-        - Peers spread the tx via p2p protocol (devp2p/ETH)
-        - Many nodes prioritize higher-typ txs and may evict very low-fee ones.
-        - If you send another tx with the same nonce but higher fees, it replaces the older one in mempools ("replacement by fee")
-    - 5: Delection and ordering (builder/proposer)
-        - Two common paths on Ethereum today:
-        - A. Local building (simplified):
-            - A slot proposer (chosen validator) builds a block by taking the most profitable mempool txs (maximize tips + MEV), simulating them and ordering them
-        - B. PBS/MEV-Boost (what most proposers use):
-            - Specialized block builders assemble candidate blocks (including MEV bundles).
-            - Relays forward these to the proposer
-            - The proposer picks the highest-paying block (maximizes value), then signs it
-        - Either way, your tx gets included if: 
-            - It pays a competitive effective tip (min(maxFeePerGas - baseFee, maxPriorityFeePerGax))
-            It doesnt conflict with earlier nonces from your account
-            It doesnt revert during the builder simulation
-    - 6: Execution during block building
-        - Transactions execute sequentially on the current state via EVM
-        - For each tx, the builder.proposer computes:
-            - State updates (balances, contract storage).
-            - Gas used, logs (events), and a receipt
-        - After all txs:
-            - stateRoot (Merkle-Patricia trie of world state)
-            - transactionRoot (Merkle root of tx list)
-            - receiptsRoot (Merkle root of receipts)
-            - logsBloom, gasUsed, baseFee, prevRandao, parentHash, etc are sealed into the block header
-    - 7: Block proposal (slot time)
-        - In Ethereum PoS, time is split into 12s slots
-        - The elected proposer for a slot signs the block header and gossips the full block to the network
-    - 8: Attestations & Fork-choice (becoming canonical)
-        - Other validators int he slot's committee verify the block:
-            - Check header validity, execute the block to re-derive roots, verify signature
-        - They attest to it. The fork-choice rule (LMD-GHOST) makes the chain with the most recent attenstations the head
-        - Once your block is the HEAD, most wallets/explorers show your tx as "confirmed/included"
-    - 9: Finality (very hard to revert)
-        - Every epoch = 32 slots ~ 6.4 mins
-        - With enough attestations, an epoch is justified, and with the next justified epoch, the prior one is finalized (Casper-FFG)
-        - Pratically, your block is final about 2 epochs (13 mins) after inclusion under normal confitions
-    - 10: Receipts & Indexing
-        - As soon as the block spreads, RPCs can answer:
-            - eth_getTransactionReceipt -> status, gasUsed, logs, blockNumber, etc.
-        - Explores index your tx, decode logs (events), and update token transfers
+# ⚡ Blockchain Transactions
+
+---
+
+## 1. What is a Transaction?
+
+A **transaction** is any action that changes the state of a blockchain. Examples:
+
+* Trading 1:1 with a friend.
+* Swapping money for a physical good.
+* Sending or receiving cryptocurrency.
+* In blockchain games: winning an item → the item is sent to your wallet → that’s also a transaction.
+
+👉 **Definition:** A **blockchain transaction** is any form of interaction between an individual (wallet) and the blockchain.
+
+* All transactions are **public** (visible on the blockchain).
+* Wallet addresses are pseudonymous → people only know it’s yours if you reveal it.
+
+---
+
+## 2. Lifecycle of a Transaction (Ethereum PoS, EVM example)
+
+### Step 0: User Action
+
+* You click **Sign & Send** in your wallet.
+* Wallet prepares the transaction object with fields:
+
+  * **nonce** (transaction number for your account).
+  * **to/value/data** (receiver, ETH amount, calldata).
+  * **gasLimit** (max gas you’ll spend).
+  * **maxFeePerGas** & **maxPriorityFeePerGas** (EIP-1559 fee model).
+  * **chainId** (for replay protection).
+* Wallet fetches the latest nonce & gas estimate from an RPC node.
+* ⚡ Tip: On Ethereum today, most transactions are **Type-2** (EIP-1559 format).
+
+---
+
+### Step 1: Transaction Encoding
+
+* Wallet encodes the transaction:
+
+  * Typed envelope + RLP payload.
+  * Hash = `keccak256` of the encoded tx.
+* Key fields to remember:
+
+  * **nonce** → sequential counter, prevents replay.
+  * **to / value / data** → receiver, ETH amount, function call data.
+  * **gasLimit** → max gas allowed.
+  * **maxFeePerGas** → maximum gas fee you’ll pay.
+  * **maxPriorityFeePerGas** → tip to validator/builder.
+  * **chainId** → prevents replay on other chains.
+
+---
+
+### Step 2: Cryptographic Signing
+
+* Wallet signs the tx with your **secp256k1 private key**.
+* Produces an **ECDSA signature** → (r, s, v).
+* Signature is appended → final raw signed tx (bytes).
+
+---
+
+### Step 3: Broadcast to a Node
+
+* Wallet sends the signed tx via `eth_sendRawTransaction` to an RPC (e.g., Infura, Alchemy, or your node).
+* The node runs pre-checks:
+
+  * Signature recovers correct sender address.
+  * Nonce matches expected.
+  * Balance is enough for value + gas.
+  * Gas ≥ intrinsic minimum.
+* If valid → tx goes into **mempool** and is gossiped across peers.
+
+---
+
+### Step 4: Mempool Propagation
+
+* Transaction spreads across the **peer-to-peer network**.
+* Nodes prioritize higher-fee txs.
+* If you resubmit with the same nonce but higher fee → “replacement by fee” occurs.
+
+---
+
+### Step 5: Selection & Ordering
+
+* Two paths in Ethereum PoS today:
+  **A. Local building:** proposer selects profitable mempool txs.
+  **B. MEV-Boost (PBS):** specialized builders create blocks (including MEV bundles). Proposers pick the most profitable block.
+* Your tx is included if:
+
+  * Tip ≥ competitive level.
+  * Nonce order is valid.
+  * Execution doesn’t revert in simulation.
+
+---
+
+### Step 6: Execution in EVM
+
+* Transactions are executed sequentially:
+
+  * Update balances & contract storage.
+  * Record gas usage, logs, events.
+* After execution, block roots are computed:
+
+  * **stateRoot** (world state).
+  * **transactionRoot** (list of txs).
+  * **receiptsRoot** (logs & receipts).
+
+---
+
+### Step 7: Block Proposal
+
+* Ethereum PoS has **12s slots**.
+* Elected proposer signs block header + gossips the block.
+
+---
+
+### Step 8: Attestations & Fork Choice
+
+* Other validators verify the block:
+
+  * Header validity.
+  * State transitions.
+  * Proposer’s signature.
+* They “attest” to it.
+* **Fork-choice rule (LMD-GHOST):** the chain with most attestations becomes the canonical head.
+* At this point → wallets show your tx as **confirmed/included**.
+
+---
+
+### Step 9: Finality
+
+* Every **epoch = 32 slots (\~6.4 min)**.
+* If enough attestations → epoch is justified.
+* Next epoch → previous epoch becomes **finalized** (Casper-FFG).
+* Practically → \~13 minutes for strong finality.
+
+---
+
+### Step 10: Receipts & Indexing
+
+* Once block spreads, RPCs can return data:
+
+  * `eth_getTransactionReceipt` → status, gas used, logs, block number.
+* Block explorers index your tx, decode logs, and update token transfers.
+
+---
+
+✅ **Summary**
+
+* A transaction = any blockchain state change.
+* On Ethereum PoS:
+
+  1. Wallet builds & signs tx.
+  2. Tx propagates to mempool.
+  3. Block builders/proposers select it.
+  4. Execution → block roots → block proposed.
+  5. Validators attest → block finalized (\~13 min).
+  6. Tx receipt is indexed → visible in explorers.
