@@ -1,5 +1,6 @@
 
 ## Transaction
+### Definitions
 - What is a transaction:
     - Trade 1:1 with your friend
     - Swap by money - trade money for physical good
@@ -7,7 +8,7 @@
 - Everything is a transaction in crypto (for example you play game and win an item, it send to your wallet -> it is a transaction)
 - => Blockchain transaction is any form of interaction between an individual and the blockchain.
 - Every transactions on blockchain will be public, but they wont know who (the wallet address) if you not tell that the wallet is yours.
-- Step by step a transaction from wallet to finalized block (EVM PoS)
+### Step by step a transaction from wallet to finalized block (EVM PoS)
     - 0: You click sign, your wallet has already
         - Build a transaction (nonce, to, value, data, gasLimit, maxFeePerGas, maxPriorityFeePerGas, chainId)
         - Pulled nonce and did a gas estimate from some RPC node

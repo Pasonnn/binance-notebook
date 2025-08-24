@@ -1,7 +1,6 @@
-## Liquidity Pool
+## Liquidity Pool and AMM
+### Definitions
 - Liquidity pool let you trade immediately (dont need to wait people to trade with you).
-
-## AMM
 - AMM is stand for Automated Market Maker
 - AMM algorithm (basic): Coin_X * Coin_Y = Z
     - For example, if the Liquidity Pool have 1000 coinx, 1000 coiny so the z will be 1.000.000. If you trade 200 coin x for coin y, you will get 167 coin y instead of 200
