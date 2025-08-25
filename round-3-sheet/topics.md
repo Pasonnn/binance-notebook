@@ -44,6 +44,69 @@
 
 ---
 
+---
+
+## 🧨 Additional Attack Vectors
+
+* **Wallet Drainer Scams**
+  * Fake airdrop or NFT claim sites that trick users into signing `setApprovalForAll` or `permit()`.
+  * Malicious transactions where approval looks harmless but grants attacker spending rights.
+  * Detection: simulate tx before signing; tools like Fire/ScamSniffer track drainer kits.
+  * Defense: educate users, wallet warnings, revoke approvals (`revoke.cash`).
+
+* **NFT-specific Risks**
+  * Fake marketplaces with spoofed signatures.
+  * Replay attacks on off-chain signed orders.
+  * Malicious `onERC721Received` implementations enabling reentrancy.
+
+* **Sandwich / MEV Attacks**
+  * Attacker front-runs user swap, then back-runs, extracting value.
+  * Especially harmful in low-liquidity pools.
+  * Defense: use private relays (Flashbots), slippage protection, MEV-aware routing.
+
+---
+
+## 🛠️ Tools & Automation
+
+* **Static Analysis**: Slither, Mythril — catch unsafe patterns (`tx.origin`, uninitialized storage).
+* **Fuzz Testing**: Echidna, Foundry fuzzing — randomized inputs to trigger edge cases.
+* **Dynamic Debugging**: Tenderly, HardHat traces, Foundry `vm.recordLogs`.
+* **Monitoring / Alerts**: Forta, Phalcon, custom Python scripts watching mempool.
+* **Explorers**: Etherscan/BlockScout — follow exploit tx step by step.
+
+---
+
+## 🧾 Exploit Post-Mortem Skills
+
+* **Structure of a write-up**
+  * Vulnerability: what bug was exploited.
+  * Exploit Flow: how attacker executed it (tx sequence).
+  * Impact: funds lost, systemic risks.
+  * Fix: what patch was applied.
+  * Lessons: what to check in future audits.
+
+* **Recent Incidents to Know**
+  * Euler Finance (2023) – flash loan + liquidation logic bug.
+  * Mango Markets (2022) – oracle price manipulation.
+  * Hundred Finance (2023) – reentrancy on Compound fork.
+  * Nomad (2022) – init bug → anyone could withdraw.
+
+---
+
+## 🌉 EVM & Layer 2 Security
+
+* **Optimistic Rollups (Arbitrum, Optimism)**
+  * Fraud proofs, 7-day withdrawal delay.
+  * Sequencer centralization risk.
+* **ZK Rollups (zkSync, StarkNet, Polygon zkEVM)**
+  * Validity proofs, faster finality.
+  * Risks: proof system bugs, circuit issues.
+* **Bridge Risks**
+  * Rollup bridges differ from lock-and-mint → message passing + fraud window.
+  * Still high-value targets.
+
+---
+
 ## 📊 Industry & Binance Context
 
 * Awareness of **major DeFi exploits** (DAO hack, Wormhole, Ronin, Poly Network, Curve stablecoin issue).
